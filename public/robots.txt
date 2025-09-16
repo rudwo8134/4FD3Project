@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://4fd3-project.vercel.app/sitemap.xml
