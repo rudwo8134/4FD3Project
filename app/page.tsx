@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import { LandingHeader } from "@/components/landing-header";
+import { motion } from "framer-motion";
 import type React from "react";
 
 import { Button } from "@/components/ui/button";
@@ -51,99 +53,7 @@ export default function HomePage() {
     [key: string]: string;
   }>({});
   const [showApplicationResults, setShowApplicationResults] = useState(false);
-
-  const mockResumeData = {
-    name: "Eric Shin",
-    email: "rudwo8134@gmail.com",
-    phone: "+1 (555) 987-6543",
-    location: "Vaughan, Ontario",
-    title: "Software Engineer | Telecommunication Technician",
-    experience: [
-      {
-        company: "Siemens Ruggedcom",
-        position: "Telecommunication Technician",
-        duration: "2019 - 2021",
-        description:
-          "Provided technical support and maintenance for rugged telecommunication systems by creating detailed reports on unit issues for Test and QA teams, testing prototypes during pre-test and final phases with Siemens software using C#.",
-      },
-      {
-        company: "Baker Health",
-        position: "React Native Developer",
-        duration: "Project",
-        description:
-          "Developed a React Native app for patient-doctor real-time connections.",
-      },
-      {
-        company: "Netcoins",
-        position: "Mobile App Developer",
-        duration: "Project",
-        description: "Improved a crypto app with 100,000+ users.",
-      },
-      {
-        company: "DefinedLogic",
-        position: "React Native Developer",
-        duration: "Project",
-        description: "Created a Florida-based rental app using React Native.",
-      },
-    ],
-    skills: [
-      // DevOps & Cloud
-      "Continuous Deployment",
-      "Jenkins",
-      "GitLab CI",
-      "CircleCI",
-      "Travis CI",
-      "Docker",
-      "Kubernetes",
-      "Ansible",
-      "Terraform",
-      "Chef",
-      "Puppet",
-      "Helm",
-      "Vagrant",
-      "Bash",
-      "Shell Scripting",
-      "CloudFormation",
-      "Azure DevOps",
-      "GitOps",
-      "Build Automation",
-      "Release Management",
-      "AWS",
-      "Azure",
-      "Google Cloud Platform",
-      "DigitalOcean",
-      "Heroku",
-      "CloudFront",
-      "Cloudflare",
-      "Lambda Functions",
-      "EC2",
-      "S3 Buckets",
-      "CloudWatch",
-      "CloudTrail",
-      "API Gateway",
-      "IAM",
-      "ECS",
-      "EKS",
-      "Fargate",
-      "Azure Functions",
-      "App Engine",
-      "Firebase",
-      "Supabase",
-      // Databases
-      "SQL",
-      "NoSQL",
-      "PostgreSQL",
-      "Penetration Testing",
-      "Encryption",
-    ],
-    education: [
-      "Bachelor’s degree, Software Engineering | McMaster University (2021 – Present)",
-      "\n\n\n\n\n\n",
-      "Associate’s degree, Electronics Engineering Technology | Centennial College (2016 - 2019)",
-    ],
-    summary:
-      "Experienced software engineer with a strong background in mobile application development (Android, iOS, React Native) and cloud services, specializing in designing and implementing scalable, reliable, and high-performance software solutions. Adept at software architecture, design patterns, and system optimization to enhance application efficiency and user experience. Skilled in the full software development life cycle (SDLC), including coding standards, peer code reviews, source control management (Git, AWS CodeCommit), CI/CD pipelines, build automation, testing strategies, and deployment processes. Passionate about voice-controlled communication technologies and the future of ambient computing, actively contributing to the development of innovative features for Alexa Calling customers. Experienced in working with cross-functional teams to drive technological advancements, improve system reliability, and deliver seamless multimedia communication experiences through Alexa devices and cloud-based services.",
-  };
+  const [resumeData, setResumeData] = useState<any>(null);
 
   const handleResumeUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -167,10 +77,33 @@ export default function HomePage() {
     }
 
     setIsUploading(true);
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    setUploadedResume(file);
-    setIsUploading(false);
-    setShowResumeInfo(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/parse-resume", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(
+          `Failed to parse resume: ${res.status} ${res.statusText} - ${errorText}`
+        );
+      }
+
+      const data = await res.json();
+      setResumeData(data);
+      setUploadedResume(file);
+      setShowResumeInfo(true);
+    } catch (error) {
+      alert("Failed to parse resume. Please try again.");
+      console.error(error);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const removeResume = () => {
@@ -352,42 +285,25 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b bg-white/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Briefcase className="h-8 w-8 text-primary" />
-              <h1 className="text-2xl font-bold">4FD3 Project</h1>
-            </div>
-            <nav className="hidden md:flex items-center gap-6">
-              <a
-                href="#features"
-                className="text-muted-foreground hover:text-foreground"
-              >
-                Features
-              </a>
-              <a
-                href="#how-it-works"
-                className="text-muted-foreground hover:text-foreground"
-              >
-                How it Works
-              </a>
-              <Button variant="outline">Sign In</Button>
-            </nav>
-          </div>
-        </div>
-      </header>
+      <LandingHeader />
 
       {/* Hero Section */}
       <section className="py-20 bg-gradient-to-br from-primary/5 to-secondary/5">
         <div className="container mx-auto px-4 text-center">
-          <h2 className="text-4xl md:text-6xl font-bold mb-6 text-balance">
-            Automate Your Job Search with AI
-          </h2>
-          <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto text-pretty">
-            Upload your resume, find relevant jobs, and apply automatically.
-            Save hours of manual work with our intelligent job matching system.
-          </p>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+          >
+            <h2 className="text-4xl md:text-6xl font-bold mb-6 text-balance bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/60">
+              Let&apos;s Get You Hired, Faster.
+            </h2>
+            <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto text-pretty">
+              Drop in your resume, and we&apos;ll handle the heavy lifting. We
+              find the right jobs and help you apply in seconds, so you can
+              focus on the interview.
+            </p>
+          </motion.div>
 
           {/* Resume Upload Section */}
           <div className="max-w-md mx-auto mb-8">
@@ -466,19 +382,19 @@ export default function HomePage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                       <div className="flex items-center gap-2">
                         <User className="h-4 w-4 text-muted-foreground" />
-                        <span>{mockResumeData.name}</span>
+                        <span>{resumeData?.name}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Mail className="h-4 w-4 text-muted-foreground" />
-                        <span>{mockResumeData.email}</span>
+                        <span>{resumeData?.email}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Phone className="h-4 w-4 text-muted-foreground" />
-                        <span>{mockResumeData.phone}</span>
+                        <span>{resumeData?.phone}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <LocationIcon className="h-4 w-4 text-muted-foreground" />
-                        <span>{mockResumeData.location}</span>
+                        <span>{resumeData?.location}</span>
                       </div>
                     </div>
                   </div>
@@ -490,18 +406,22 @@ export default function HomePage() {
                       Work Experience
                     </h4>
                     <div className="space-y-3">
-                      {mockResumeData.experience.map((exp, index) => (
-                        <div
-                          key={index}
-                          className="border-l-2 border-primary/20 pl-4"
-                        >
-                          <div className="font-medium">{exp.position}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {exp.company} • {exp.duration}
+                      {resumeData?.experience?.map(
+                        (exp: any, index: number) => (
+                          <div
+                            key={index}
+                            className="border-l-2 border-primary/20 pl-4"
+                          >
+                            <div className="font-medium">{exp.position}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {exp.company} • {exp.duration}
+                            </div>
+                            <div className="text-sm mt-1">
+                              {exp.description}
+                            </div>
                           </div>
-                          <div className="text-sm mt-1">{exp.description}</div>
-                        </div>
-                      ))}
+                        )
+                      )}
                     </div>
                   </div>
 
@@ -512,23 +432,31 @@ export default function HomePage() {
                       Skills
                     </h4>
                     <div className="flex flex-wrap gap-2">
-                      {mockResumeData.skills.map((skill, index) => (
-                        <span
-                          key={index}
-                          className="bg-primary/10 text-primary px-2 py-1 rounded-full text-sm"
-                        >
-                          {skill}
-                        </span>
-                      ))}
+                      {resumeData?.skills?.map(
+                        (skill: string, index: number) => (
+                          <span
+                            key={index}
+                            className="bg-primary/10 text-primary px-2 py-1 rounded-full text-sm"
+                          >
+                            {skill}
+                          </span>
+                        )
+                      )}
                     </div>
                   </div>
 
                   {/* Education */}
                   <div>
                     <h4 className="font-semibold mb-2">Education</h4>
-                    <p className="text-sm text-muted-foreground">
-                      {mockResumeData.education}
-                    </p>
+                    <div className="text-sm text-muted-foreground space-y-1">
+                      {Array.isArray(resumeData?.education) ? (
+                        resumeData.education.map((edu: string, i: number) => (
+                          <p key={i}>{edu}</p>
+                        ))
+                      ) : (
+                        <p>{resumeData?.education}</p>
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -998,69 +926,17 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* Features Section */}
-      <section id="features" className="py-16 bg-muted/30">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <h3 className="text-3xl font-bold mb-4">How 4FD3 Project Works</h3>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Our AI-powered platform streamlines your job search process from
-              start to finish
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <Card>
-              <CardHeader className="text-center">
-                <Upload className="h-12 w-12 text-primary mx-auto mb-4" />
-                <CardTitle>Upload Resume</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground text-center">
-                  Upload your resume and let our AI extract your skills and
-                  experience
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="text-center">
-                <Search className="h-12 w-12 text-primary mx-auto mb-4" />
-                <CardTitle>Find Jobs</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground text-center">
-                  Our system searches and matches you with relevant job
-                  opportunities
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="text-center">
-                <CheckCircle className="h-12 w-12 text-primary mx-auto mb-4" />
-                <CardTitle>Auto Apply</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground text-center">
-                  Automatically apply to selected jobs with personalized
-                  applications
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </section>
-
       {/* Footer */}
       <footer className="py-12 bg-background border-t">
         <div className="container mx-auto px-4 text-center">
           <div className="flex items-center justify-center gap-2 mb-4">
             <Briefcase className="h-6 w-6 text-primary" />
-            <span className="text-xl font-bold">4FD3 Project</span>
+            <span className="text-xl font-bold">
+              LinkedIn Resume Apply Automation
+            </span>
           </div>
           <p className="text-muted-foreground">
-            © 2024 4FD3 Project. Automate your job search with AI.
+            © 2024 McMaster 4FD3 Project. Built for future innovators.
           </p>
         </div>
       </footer>
