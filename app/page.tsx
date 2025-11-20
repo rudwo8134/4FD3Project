@@ -36,6 +36,8 @@ export default function HomePage() {
   const [location, setLocation] = useState("");
   const [locationSuggestions, setLocationSuggestions] = useState<string[]>([]);
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
+  const [jobSuggestions, setJobSuggestions] = useState<string[]>([]);
+  const [showJobSuggestions, setShowJobSuggestions] = useState(false);
   const [showJobs, setShowJobs] = useState(false);
   const [jobs, setJobs] = useState<any[]>([]);
   const [offset, setOffset] = useState(0);
@@ -464,99 +466,185 @@ export default function HomePage() {
           )}
 
           {/* Job Search Form */}
-          <div className="max-w-2xl mx-auto mb-8">
-            <div className="flex flex-col md:flex-row md:flex-wrap gap-2 relative items-stretch">
-              <Input
-                placeholder="Enter job title (e.g., Frontend Developer)"
-                value={jobTitle}
-                onChange={(e) => setJobTitle(e.target.value)}
-                className="flex-1 min-w-[12rem]"
-              />
-              <div className="w-full md:w-64 relative">
-                <Input
-                  placeholder="Enter location (e.g., Toronto)"
-                  value={location}
-                  autoComplete="off"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  onChange={async (e) => {
-                    const v = e.target.value;
-                    setLocation(v);
-                    if (!v.trim()) {
-                      setLocationSuggestions([]);
-                      setShowLocationSuggestions(false);
-                      return;
-                    }
-                    // Debounce inline: wait briefly before fetching
-                    await new Promise((r) => setTimeout(r, 200));
-                    const params = new URLSearchParams({ q: v });
-                    try {
-                      const res = await fetch(
-                        `/api/locations/search?${params.toString()}`,
-                        {
-                          cache: "no-store",
-                        }
-                      );
-                      if (!res.ok) throw new Error("Failed to fetch locations");
-                      const data = await res.json();
-                      const suggestions: string[] = Array.isArray(data?.results)
-                        ? data.results
-                        : [];
-                      setLocationSuggestions(suggestions);
-                      setShowLocationSuggestions(suggestions.length > 0);
-                    } catch (err) {
-                      setLocationSuggestions([]);
-                      setShowLocationSuggestions(false);
-                    }
-                  }}
-                  onFocus={() =>
-                    setShowLocationSuggestions(locationSuggestions.length > 0)
-                  }
-                  onBlur={() =>
-                    setTimeout(() => setShowLocationSuggestions(false), 150)
-                  }
-                />
-                {showLocationSuggestions && (
-                  <div className="absolute z-50 left-0 right-0 mt-1 w-full bg-white border rounded-md shadow-sm max-h-56 overflow-auto">
-                    {locationSuggestions.map((s) => (
-                      <div
-                        key={s}
-                        className="px-3 py-2 hover:bg-gray-100 cursor-pointer"
-                        onMouseDown={() => {
-                          setLocation(s);
-                          setShowLocationSuggestions(false);
-                        }}
-                      >
-                        {s}
-                      </div>
-                    ))}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="max-w-4xl mx-auto mb-12 relative z-30"
+          >
+            <div className="bg-white rounded-2xl shadow-2xl shadow-primary/10 border p-2">
+              <div className="flex flex-col md:flex-row gap-2">
+                <div className="flex-1 relative group">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors">
+                    <Search className="h-5 w-5" />
                   </div>
-                )}
+                  <Input
+                    placeholder="Job title, keywords, or company"
+                    value={jobTitle}
+                    onChange={async (e) => {
+                      const v = e.target.value;
+                      setJobTitle(v);
+                      if (!v.trim()) {
+                        setJobSuggestions([]);
+                        setShowJobSuggestions(false);
+                        return;
+                      }
+                      // Debounce inline
+                      await new Promise((r) => setTimeout(r, 200));
+                      const params = new URLSearchParams({ q: v });
+                      try {
+                        const res = await fetch(
+                          `/api/jobs/suggestions?${params.toString()}`,
+                          { cache: "no-store" }
+                        );
+                        if (!res.ok) throw new Error("Failed to fetch jobs");
+                        const data = await res.json();
+                        const suggestions: string[] = Array.isArray(
+                          data?.results
+                        )
+                          ? data.results
+                          : [];
+                        setJobSuggestions(suggestions);
+                        setShowJobSuggestions(suggestions.length > 0);
+                      } catch (err) {
+                        setJobSuggestions([]);
+                        setShowJobSuggestions(false);
+                      }
+                    }}
+                    onFocus={() =>
+                      setShowJobSuggestions(jobSuggestions.length > 0)
+                    }
+                    onBlur={() =>
+                      setTimeout(() => setShowJobSuggestions(false), 200)
+                    }
+                    className="pl-12 h-14 text-lg border-transparent focus-visible:ring-0 bg-transparent hover:bg-gray-50/50 transition-colors rounded-xl"
+                  />
+
+                  {/* Job Suggestions Dropdown */}
+                  {showJobSuggestions && (
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-white border rounded-xl shadow-xl overflow-hidden max-h-64 z-50 animate-in fade-in zoom-in-95 duration-200">
+                      <div className="p-2">
+                        <div className="text-xs font-semibold text-muted-foreground px-3 py-2">
+                          SUGGESTED JOBS
+                        </div>
+                        {jobSuggestions.map((s) => (
+                          <div
+                            key={s}
+                            className="px-3 py-3 hover:bg-primary/5 hover:text-primary rounded-lg cursor-pointer transition-colors flex items-center gap-2"
+                            onMouseDown={() => {
+                              setJobTitle(s);
+                              setShowJobSuggestions(false);
+                            }}
+                          >
+                            <Search className="h-4 w-4" />
+                            {s}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="hidden md:block w-px bg-gray-200 my-3" />
+
+                <div className="flex-1 relative group">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors">
+                    <MapPin className="h-5 w-5" />
+                  </div>
+                  <Input
+                    placeholder="City, province, or region"
+                    value={location}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    onChange={async (e) => {
+                      const v = e.target.value;
+                      setLocation(v);
+                      if (!v.trim()) {
+                        setLocationSuggestions([]);
+                        setShowLocationSuggestions(false);
+                        return;
+                      }
+                      // Debounce inline
+                      await new Promise((r) => setTimeout(r, 200));
+                      const params = new URLSearchParams({ q: v });
+                      try {
+                        const res = await fetch(
+                          `/api/locations/search?${params.toString()}`,
+                          { cache: "no-store" }
+                        );
+                        if (!res.ok)
+                          throw new Error("Failed to fetch locations");
+                        const data = await res.json();
+                        const suggestions: string[] = Array.isArray(
+                          data?.results
+                        )
+                          ? data.results
+                          : [];
+                        setLocationSuggestions(suggestions);
+                        setShowLocationSuggestions(suggestions.length > 0);
+                      } catch (err) {
+                        setLocationSuggestions([]);
+                        setShowLocationSuggestions(false);
+                      }
+                    }}
+                    onFocus={() =>
+                      setShowLocationSuggestions(locationSuggestions.length > 0)
+                    }
+                    onBlur={() =>
+                      setTimeout(() => setShowLocationSuggestions(false), 200)
+                    }
+                    className="pl-12 h-14 text-lg border-transparent focus-visible:ring-0 bg-transparent hover:bg-gray-50/50 transition-colors rounded-xl"
+                  />
+
+                  {/* Location Suggestions Dropdown */}
+                  {showLocationSuggestions && (
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-white border rounded-xl shadow-xl overflow-hidden max-h-64 z-50 animate-in fade-in zoom-in-95 duration-200">
+                      <div className="p-2">
+                        <div className="text-xs font-semibold text-muted-foreground px-3 py-2">
+                          SUGGESTED LOCATIONS
+                        </div>
+                        {locationSuggestions.map((s) => (
+                          <div
+                            key={s}
+                            className="px-3 py-3 hover:bg-primary/5 hover:text-primary rounded-lg cursor-pointer transition-colors flex items-center gap-2"
+                            onMouseDown={() => {
+                              setLocation(s);
+                              setShowLocationSuggestions(false);
+                            }}
+                          >
+                            <MapPin className="h-4 w-4" />
+                            {s}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <Button
+                  onClick={handleStartDiscovery}
+                  disabled={
+                    isSearching ||
+                    !jobTitle.trim() ||
+                    !uploadedResume ||
+                    !location.trim()
+                  }
+                  size="lg"
+                  className="h-14 px-8 text-lg font-semibold shadow-lg hover:shadow-primary/25 transition-all rounded-xl"
+                >
+                  {isSearching ? (
+                    <>
+                      <Loader2 className="animate-spin h-5 w-5 mr-2" />
+                      Searching...
+                    </>
+                  ) : (
+                    "Find Jobs"
+                  )}
+                </Button>
               </div>
-              <Button
-                onClick={handleStartDiscovery}
-                disabled={
-                  isSearching ||
-                  !jobTitle.trim() ||
-                  !uploadedResume ||
-                  !location.trim()
-                }
-                className="px-6 w-full md:w-auto whitespace-nowrap"
-              >
-                {isSearching ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                    Searching...
-                  </>
-                ) : (
-                  <>
-                    <Search className="h-4 w-4 mr-2" />
-                    Start Job Discovery
-                  </>
-                )}
-              </Button>
             </div>
-          </div>
+          </motion.div>
 
           {/* Stats */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-2xl mx-auto">
