@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { LandingHeader } from "@/components/landing-header";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import type React from "react";
 
 import { Button } from "@/components/ui/button";
@@ -134,6 +134,7 @@ export default function HomePage() {
         location,
         limit: String(PAGE_SIZE),
         offset: "0",
+        isEmailAvailable: "true",
       });
       const res = await fetch(`/api/jobs/search?${params.toString()}`, {
         cache: "no-store",
@@ -163,6 +164,8 @@ export default function HomePage() {
             score: r.suitabilityScore ?? 0,
             suitabilityScore: r.suitabilityScore ?? 0,
             keyPoints: r.keyPoints ?? r.key_points ?? null,
+            isEmailAvailable: r.isEmailAvailable ?? false,
+            resumeEmail: r.resume_email ?? null,
           }))
         : [];
       setJobs(mapped);
@@ -196,6 +199,7 @@ export default function HomePage() {
         location,
         limit: String(PAGE_SIZE),
         offset: String(offset),
+        isEmailAvailable: "true",
       });
       const res = await fetch(`/api/jobs/search?${params.toString()}`, {
         cache: "no-store",
@@ -223,6 +227,8 @@ export default function HomePage() {
             score: r.suitabilityScore ?? 0,
             suitabilityScore: r.suitabilityScore ?? 0,
             keyPoints: r.keyPoints ?? r.key_points ?? null,
+            isEmailAvailable: r.isEmailAvailable ?? false,
+            resumeEmail: r.resume_email ?? null,
           }))
         : [];
       setJobs((prev) => [...prev, ...mapped]);
@@ -236,19 +242,21 @@ export default function HomePage() {
   };
 
   const handleApplyToJobs = async () => {
-    if (selectedJobs.length === 0) return;
+    if (selectedJobs.length === 0 || !uploadedResume) return;
 
     setIsApplying(true);
     setApplicationProgress({});
     setCurrentJobIndex(0);
+    setShowApplicationResults(false);
 
     const applicationSteps = [
       "Analyzing job requirements...",
       "Customizing resume for position...",
-      "Generating cover letter...",
-      "Filling out application form...",
-      "Submitting application...",
-      "Application submitted successfully!",
+      "Extracting application email...",
+      "Filling application form...",
+      "Uploading resume...",
+      "Filling experience details...",
+      "Sending application...",
     ];
 
     for (let i = 0; i < selectedJobs.length; i++) {
@@ -256,28 +264,77 @@ export default function HomePage() {
       const job = jobs.find((j) => j.id === jobId);
       setCurrentJobIndex(i);
 
-      for (
-        let stepIndex = 0;
-        stepIndex < applicationSteps.length;
-        stepIndex++
-      ) {
-        const step = applicationSteps[stepIndex];
-        setCurrentApplicationStep(`Applying to ${job?.company}: ${step}`);
+      // Initial step
+      setCurrentApplicationStep(`Applying to ${job?.company}: Starting...`);
 
-        // Simulate processing time for each step
-        const delay =
-          stepIndex === applicationSteps.length - 1
-            ? 1000
-            : Math.random() * 1500 + 500;
-        await new Promise((resolve) => setTimeout(resolve, delay));
+      if (!job?.isEmailAvailable) {
+        // Skip jobs that don't support email application
+        // Or handle as failure
+        setApplicationProgress((prev) => ({
+          ...prev,
+          [jobId]: "skipped", // or 'failed'
+        }));
+        continue;
+      }
 
-        if (stepIndex === applicationSteps.length - 1) {
+      try {
+        // Simulate steps before actual API call for better UX
+        for (
+          let stepIndex = 0;
+          stepIndex < applicationSteps.length - 1;
+          stepIndex++
+        ) {
+          setCurrentApplicationStep(
+            `Applying to ${job?.company}: ${applicationSteps[stepIndex]}`
+          );
+          await new Promise((resolve) =>
+            setTimeout(resolve, 800 + Math.random() * 500)
+          );
+        }
+
+        setCurrentApplicationStep(
+          `Applying to ${job?.company}: Sending application...`
+        );
+
+        const formData = new FormData();
+        formData.append("job_posting_id", job.jobPostingId);
+        formData.append("applicant_email", resumeData?.email || "");
+        formData.append("applicant_name", resumeData?.name || "");
+        formData.append("emailTestMode", "true"); // TODO: Make this configurable?
+        formData.append("files", uploadedResume);
+
+        const res = await fetch("/api/jobs/apply", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!res.ok) {
+          throw new Error(`Failed to apply: ${res.status}`);
+        }
+
+        const result = await res.json();
+
+        if (
+          result.status === "success" &&
+          result.results?.[0]?.status === "success"
+        ) {
           setApplicationProgress((prev) => ({
             ...prev,
             [jobId]: "completed",
           }));
+        } else {
+          throw new Error(result.results?.[0]?.error || "Application failed");
         }
+      } catch (error: any) {
+        console.error(`Error applying to job ${jobId}:`, error);
+        setApplicationProgress((prev) => ({
+          ...prev,
+          [jobId]: "failed",
+        }));
       }
+
+      // Small pause between jobs
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
 
     setIsApplying(false);
@@ -698,19 +755,35 @@ export default function HomePage() {
                   <CardContent className="p-6">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
+                        <div className="flex flex-wrap items-center gap-3 gap-y-2 mb-2">
                           <h4 className="text-xl font-semibold">{job.title}</h4>
+
                           {typeof job.suitabilityScore === "number" && (
-                            <span
-                              className={`px-2 py-1 rounded-full text-sm font-medium ${
-                                job.suitabilityScore >= 80
-                                  ? "bg-green-100 text-green-700"
-                                  : job.suitabilityScore >= 60
-                                  ? "bg-yellow-100 text-yellow-700"
-                                  : "bg-gray-100 text-gray-700"
-                              }`}
-                            >
-                              {Math.round(job.suitabilityScore)}%
+                            <div className="group relative">
+                              <span
+                                className={`px-2 py-1 rounded-full text-sm font-medium cursor-help flex items-center gap-1 ${
+                                  job.suitabilityScore >= 80
+                                    ? "bg-green-100 text-green-700"
+                                    : job.suitabilityScore >= 60
+                                    ? "bg-yellow-100 text-yellow-700"
+                                    : "bg-gray-100 text-gray-700"
+                                }`}
+                              >
+                                <Sparkles className="h-3 w-3" />
+                                AI Score: {Math.round(job.suitabilityScore)}%
+                              </span>
+                              {/* Tooltip */}
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                                AI-analyzed match with your resume
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                              </div>
+                            </div>
+                          )}
+
+                          {job.isEmailAvailable && (
+                            <span className="px-2 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-700 flex items-center gap-1">
+                              <Mail className="h-3 w-3" />
+                              Email Apply
                             </span>
                           )}
                           {isApplying && selectedJobs.includes(job.id) && (
@@ -720,6 +793,20 @@ export default function HomePage() {
                                   <CheckCircle className="h-4 w-4" />
                                   <span className="text-sm font-medium">
                                     Applied
+                                  </span>
+                                </div>
+                              ) : applicationProgress[job.id] === "failed" ? (
+                                <div className="flex items-center gap-1 text-red-600">
+                                  <X className="h-4 w-4" />
+                                  <span className="text-sm font-medium">
+                                    Failed
+                                  </span>
+                                </div>
+                              ) : applicationProgress[job.id] === "skipped" ? (
+                                <div className="flex items-center gap-1 text-yellow-600">
+                                  <Clock className="h-4 w-4" />
+                                  <span className="text-sm font-medium">
+                                    Skipped
                                   </span>
                                 </div>
                               ) : currentJobIndex ===
@@ -813,6 +900,21 @@ export default function HomePage() {
                                 Suitability Score is {Math.round(job.score)}%.
                                 We recommend submitting—your chance of success
                                 is higher.
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {job.isEmailAvailable && (
+                          <div className="mt-3 flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 p-3 text-blue-800">
+                            <Mail className="h-4 w-4 mt-0.5" />
+                            <div className="text-sm">
+                              <div className="font-medium">
+                                Email Application Available
+                              </div>
+                              <div>
+                                You can apply directly via email
+                                {job.resumeEmail ? `: ${job.resumeEmail}` : ""}.
                               </div>
                             </div>
                           </div>
@@ -933,82 +1035,183 @@ export default function HomePage() {
             )}
 
             {isApplying && (
-              <div className="max-w-2xl mx-auto mt-8">
-                <Card className="bg-blue-50 border-blue-200">
-                  <CardContent className="p-6">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4"
+              >
+                <Card className="w-full max-w-md bg-white shadow-2xl border-primary/10">
+                  <CardContent className="p-8">
                     <div className="text-center">
-                      <div className="flex items-center justify-center gap-2 mb-4">
-                        <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-                        <h4 className="text-lg font-semibold text-blue-900">
-                          Application in Progress
-                        </h4>
-                      </div>
-                      <p className="text-blue-700 mb-4">
-                        {currentApplicationStep}
-                      </p>
-                      <div className="w-full bg-blue-200 rounded-full h-2">
-                        <div
-                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                          style={{
-                            width: `${
-                              ((currentJobIndex + 1) / selectedJobs.length) *
-                              100
-                            }%`,
+                      <div className="relative w-20 h-20 mx-auto mb-6">
+                        <motion.div className="absolute inset-0 border-4 border-primary/20 rounded-full" />
+                        <motion.div
+                          className="absolute inset-0 border-4 border-primary rounded-full border-t-transparent"
+                          animate={{ rotate: 360 }}
+                          transition={{
+                            duration: 1,
+                            repeat: Infinity,
+                            ease: "linear",
                           }}
                         />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Briefcase className="h-8 w-8 text-primary" />
+                        </div>
                       </div>
-                      <p className="text-sm text-blue-600 mt-2">
-                        Job {currentJobIndex + 1} of {selectedJobs.length}
-                      </p>
+
+                      <motion.h4
+                        className="text-xl font-bold text-foreground mb-2"
+                        animate={{ opacity: [0.5, 1, 0.5] }}
+                        transition={{ duration: 2, repeat: Infinity }}
+                      >
+                        Application in Progress
+                      </motion.h4>
+
+                      <div className="h-8 mb-6 flex items-center justify-center overflow-hidden">
+                        <AnimatePresence mode="wait">
+                          <motion.p
+                            key={currentApplicationStep}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            className="text-muted-foreground text-sm font-medium"
+                          >
+                            {currentApplicationStep}
+                          </motion.p>
+                        </AnimatePresence>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                          <span>Progress</span>
+                          <span>
+                            {Math.round(
+                              (currentJobIndex / selectedJobs.length) * 100
+                            )}
+                            %
+                          </span>
+                        </div>
+                        <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                          <motion.div
+                            className="h-full bg-primary"
+                            initial={{ width: 0 }}
+                            animate={{
+                              width: `${
+                                (currentJobIndex / selectedJobs.length) * 100
+                              }%`,
+                            }}
+                            transition={{ duration: 0.5, ease: "easeInOut" }}
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Applying to {currentJobIndex + 1} of{" "}
+                          {selectedJobs.length} jobs
+                        </p>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
-              </div>
+              </motion.div>
             )}
 
             {showApplicationResults && (
-              <div className="max-w-2xl mx-auto mt-8">
-                <Card className="bg-green-50 border-green-200">
-                  <CardContent className="p-6">
-                    <div className="text-center">
-                      <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-4" />
-                      <h4 className="text-xl font-semibold text-green-900 mb-2">
-                        Applications Submitted Successfully!
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="max-w-2xl mx-auto mt-12"
+              >
+                <Card className="bg-gradient-to-br from-green-50 to-white border-green-200 shadow-xl overflow-hidden">
+                  <CardContent className="p-8">
+                    <div className="text-center mb-8">
+                      <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
+                        <CheckCircle className="h-8 w-8" />
+                      </div>
+                      <h4 className="text-2xl font-bold text-green-900 mb-3">
+                        Applications Submitted!
                       </h4>
-                      <p className="text-green-700 mb-4">
-                        You've successfully applied to {selectedJobs.length} job
-                        {selectedJobs.length > 1 ? "s" : ""}. You'll receive
-                        email confirmations and updates on your application
-                        status.
+                      <p className="text-green-700/80 max-w-md mx-auto leading-relaxed">
+                        You've successfully processed{" "}
+                        <span className="font-semibold">
+                          {selectedJobs.length}
+                        </span>{" "}
+                        {selectedJobs.length === 1 ? "job" : "jobs"}. Check your
+                        email for confirmation details.
                       </p>
-                      <div className="space-y-2">
-                        {selectedJobs.map((jobId) => {
-                          const job = jobs.find((j) => j.id === jobId);
-                          return (
-                            <div
-                              key={jobId}
-                              className="flex items-center justify-between bg-white rounded-lg p-3"
-                            >
-                              <div className="flex items-center gap-2">
-                                <CheckCircle className="h-4 w-4 text-green-600" />
-                                <span className="font-medium">
+                    </div>
+
+                    <div className="space-y-3">
+                      {selectedJobs.map((jobId, index) => {
+                        const job = jobs.find((j) => j.id === jobId);
+                        const status = applicationProgress[jobId];
+
+                        return (
+                          <motion.div
+                            key={jobId}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: index * 0.1 }}
+                            className="flex items-center justify-between bg-white p-4 rounded-xl border border-green-100 shadow-sm hover:shadow-md transition-shadow group"
+                          >
+                            <div className="flex items-center gap-4 overflow-hidden flex-1">
+                              <div
+                                className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
+                                  status === "completed"
+                                    ? "bg-green-100 text-green-600"
+                                    : status === "failed"
+                                    ? "bg-red-100 text-red-600"
+                                    : "bg-yellow-100 text-yellow-600"
+                                }`}
+                              >
+                                {status === "completed" ? (
+                                  <CheckCircle className="h-5 w-5" />
+                                ) : status === "failed" ? (
+                                  <X className="h-5 w-5" />
+                                ) : (
+                                  <Clock className="h-5 w-5" />
+                                )}
+                              </div>
+
+                              <div className="flex flex-col min-w-0 flex-1">
+                                <span
+                                  className="font-semibold text-gray-900 truncate block"
+                                  title={job?.title}
+                                >
                                   {job?.title}
                                 </span>
-                                <span className="text-sm text-muted-foreground">
-                                  at {job?.company}
+                                <span
+                                  className="text-sm text-muted-foreground truncate block"
+                                  title={job?.company}
+                                >
+                                  {job?.company}
                                 </span>
                               </div>
-                              <span className="text-sm text-green-600 font-medium">
-                                Applied
+                            </div>
+
+                            <div className="shrink-0 pl-3">
+                              <span
+                                className={`px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide ${
+                                  status === "completed"
+                                    ? "bg-green-100 text-green-700"
+                                    : status === "failed"
+                                    ? "bg-red-100 text-red-700"
+                                    : "bg-yellow-100 text-yellow-700"
+                                }`}
+                              >
+                                {status === "completed"
+                                  ? "Applied"
+                                  : status === "failed"
+                                  ? "Failed"
+                                  : "Skipped"}
                               </span>
                             </div>
-                          );
-                        })}
-                      </div>
+                          </motion.div>
+                        );
+                      })}
                     </div>
                   </CardContent>
                 </Card>
-              </div>
+              </motion.div>
             )}
           </div>
         </section>

@@ -16,6 +16,11 @@ export async function GET(request: Request) {
     if (limit) upstreamUrl.searchParams.set("limit", limit);
     if (offset) upstreamUrl.searchParams.set("offset", offset);
 
+    const isEmailAvailableParam = searchParams.get("isEmailAvailable");
+    if (isEmailAvailableParam) {
+      upstreamUrl.searchParams.set("isEmailAvailable", isEmailAvailableParam);
+    }
+
     const res = await fetch(upstreamUrl.toString(), {
       method: "GET",
       headers: {
@@ -133,6 +138,11 @@ export async function GET(request: Request) {
         suitabilityScore = Number.isFinite(parsed) ? parsed : 0;
       }
 
+      // Auto-scale score if it's a decimal (e.g. 0.54 -> 54, 0.43 -> 43)
+      if (suitabilityScore > 0 && suitabilityScore <= 1) {
+        suitabilityScore = Math.round(suitabilityScore * 100);
+      }
+
       const keyPoints =
         getField(r, [
           "key_points_to_mention",
@@ -140,6 +150,15 @@ export async function GET(request: Request) {
           "keyPoints",
           "Key Points to Mention in Application",
         ]) ?? null;
+
+      // Extract email availability
+      const isEmailAvailable =
+        getField(r, ["isEmailAvailable", "is_email_available"]) === true;
+      const resumeEmail = getField(r, [
+        "resume_email",
+        "resumeEmail",
+        "email",
+      ]) as string | null;
 
       const id =
         (getField(r, ["id", "job_posting_id", "jobPostingId"]) as
@@ -203,6 +222,11 @@ export async function GET(request: Request) {
         score: suitabilityScore, // keep legacy field for UI compatibility
         keyPoints,
         key_points: keyPoints,
+
+        // Email Application availability
+        isEmailAvailable,
+        resume_email: resumeEmail,
+        resumeEmail: resumeEmail,
 
         // Additional metadata passthrough
         job_function: (getField(r, ["job_function"]) as string | null) ?? null,
