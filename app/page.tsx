@@ -300,7 +300,7 @@ export default function HomePage() {
         formData.append("job_posting_id", job.jobPostingId);
         formData.append("applicant_email", resumeData?.email || "");
         formData.append("applicant_name", resumeData?.name || "");
-        formData.append("emailTestMode", "true"); // TODO: Make this configurable?
+        formData.append("emailTestMode", "false"); // TODO: Make this configurable?
         formData.append("files", uploadedResume);
 
         const res = await fetch("/api/jobs/apply", {
